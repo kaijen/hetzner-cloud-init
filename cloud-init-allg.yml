@@ -4,8 +4,6 @@
 # https://community.hetzner.com/tutorials/basic-cloud-config
 # https://cloudinit.readthedocs.io/en/latest/index.html
 
-
-
 packages:
   - build-essential
   - docker
