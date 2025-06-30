@@ -1,0 +1,25 @@
+#cloud-config
+
+# https://github.com/tech-otaku/hetzner-cloud-init/blob/main/config.yaml
+# https://community.hetzner.com/tutorials/basic-cloud-config
+# https://cloudinit.readthedocs.io/en/latest/index.html
+
+
+
+packages:
+  - build-essential
+  - docker
+  - fail2ban
+  - ufw
+package_update: true
+package_upgrade: true
+
+# Install pyenv for each user
+
+users:
+  - name: holu
+    groups: users, admin
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - <public_ssh_key>
