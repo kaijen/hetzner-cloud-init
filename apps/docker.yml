@@ -1,7 +1,4 @@
 #cloud-config
-package_update: true
-package_upgrade: false
-
 packages:            # utilities needed before we add the Docker repo
   - ca-certificates
   - curl

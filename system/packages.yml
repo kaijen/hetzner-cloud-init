@@ -1,4 +1,6 @@
 #cloud-config
+package_update: true
+package_upgrade: true
 
 packages:
   - build-essential
@@ -14,5 +16,3 @@ packages:
   - xz-utils
   - fail2ban
   - ufw
-package_update: true
-package_upgrade: true
