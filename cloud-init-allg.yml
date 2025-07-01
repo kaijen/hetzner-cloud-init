@@ -6,7 +6,6 @@
 
 packages:
   - build-essential
-  - docker
   - fail2ban
   - ufw
 package_update: true
