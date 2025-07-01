@@ -1,3 +1,4 @@
-#cloud-config
 #include
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/kai.yml
+https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/system/packages.yml
+https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/kai.yml
+

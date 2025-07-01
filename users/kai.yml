@@ -1,0 +1,18 @@
+#cloud-config
+
+users:
+  - name: kai
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_import_id:
+      - gh:kaijen
+
+runcmd:
+  - su - kai -c "curl https://pyenv.run | bash"
+  - su - kai -c "echo 'export PATH=\"$HOME/.pyenv/bin:$PATH\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"$(pyenv init -)\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - kai -c "~/.pyenv/bin/pyenv install 3.13.0"
+  - su - kai -c "~/.pyenv/bin/pyenv global 3.13.0"
