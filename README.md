@@ -10,6 +10,7 @@
 - Tastaturlayout setzen
 - Locale setzen
 - Hostnamen setzen
+- ssh Hardening
 
 
 ```yaml

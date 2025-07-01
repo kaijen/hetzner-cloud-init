@@ -1,10 +1,4 @@
 #cloud-config
-packages:            # utilities needed before we add the Docker repo
-  - ca-certificates
-  - curl
-  - gnupg
-  - lsb-release
-
 runcmd:
   # 1. prepare keyring directory
   - install -m 0755 -d /etc/apt/keyrings

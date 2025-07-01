@@ -15,3 +15,7 @@ packages:
   - xz-utils
   - fail2ban
   - ufw
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
