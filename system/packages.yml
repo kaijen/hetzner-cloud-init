@@ -1,6 +1,5 @@
 #cloud-config
 
-
 packages:
   - build-essential
   - libssl-dev
@@ -8,7 +7,6 @@ packages:
   - libbz2-dev
   - libreadline-dev
   - libsqlite3-dev
-  - libncursesw5-dev
   - libffi-dev
   - liblzma-dev
   - tk-dev
