@@ -15,9 +15,9 @@ package_upgrade: true
 # Install pyenv for each user
 
 users:
-  - name: holu
-    groups: users, admin
+  - name: kai
+    groups: users, wheel, docker
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
-    ssh_authorized_keys:
-      - <public_ssh_key>
+    ssh_import_id:
+      - gh:kaijen

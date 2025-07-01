@@ -1,0 +1,3 @@
+#cloud-config
+#include:
+https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/cloud-init-allg.yml
