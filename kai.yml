@@ -1,0 +1,9 @@
+#cloud-config
+
+users:
+  - name: kai
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_import_id:
+      - gh:kaijen
