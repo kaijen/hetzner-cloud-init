@@ -1,5 +1,0 @@
-#cloud-config
-
-runcmd:
-  - usermod -aG docker ubuntu
-  - systemctl enable --now docker
