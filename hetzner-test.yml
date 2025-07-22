@@ -1,3 +1,85 @@
-#include
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/system/system.yml
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/users.yml
+#cloud-config
+timezone: Europe/Berlin
+
+package_upgrade: true
+
+hostname: humboldt
+fqdn: humboldt.tim.jendrian.de
+create_hostname_file: true
+
+packages:
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libffi-dev
+  - liblzma-dev
+  - tk-dev
+  - uuid-dev
+  - xz-utils
+  - fail2ban
+  - ufw
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+
+users:
+  - name: kai
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_import_id:
+      - gh:kaijen
+  - name: tim
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXOTDsMRjwRmBtERuUg5nxdl7pfngAwWqR3r1shpfvr
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDnfQ5+vnPxLG6JzOBw0uOLsB57MFGboVF0+jNeezL8e+KTSMqmCdgbIqD/hjdwFZYnutYoN+5iVOr4ddP3zsmhTcmgiY43VVgkZbr4cRXd+mXdxl2IkaDgMc380AbYQbWNjhPtHwikJIBXfHzrLqhCwEG0w8xyDMWyYrXqOsLE1/M2nJL+sKeAciI4qWuy5Cw+WFQFmq09dXgwiqlqlMXnu4W9ZUs90LuHIYHGC4YorwGLH4tZggIo3u2tloV4D3KmENdJFniYhddstNxwv3q0kQBata1My2MXxqu6hAEKbEmVLE+CpQ6yQ2ap29dp/Dk+WUobTtGRhOpTkqNzeI4omtEzLmS19KMjDDjJDldWvcCrTfsXVai/UqyPAzh9ydwsi4OK/b5Qcr7dQA89145NKm+mjyCl5Y//bTW1uZortXDJOgI2sGY3tZiePBddJyXsgbnTTX1y5cfp21tcBlbTysUo7J/35h+KuQM8fHLqH94nqTDdbH42IX+ROEwXAkE=
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDLKTg12DLQ4FdnaMBhp0c4QqbSSBq6XZvE3I3BSGnxgtRXvIrPjSzHaT3F37TarqsJSVLkxXyhsziBvLE3zMSZwof44oBQrr3a8cnccNVDWbeih6lZelZh6Q2MGuBnTTi8rsjHJwD+ieS73fdmLYLlmHNX3vWAxlezwEfYGmzDJ6U6x1TKMHTNqZUod/ykB4LBvFLwSwK8KG5oDtGVDELWJmwPcswAm0ItxAeunecAdHDVnbT4wRs4D/9UY+0ubXslYg6k/z9EmmuCxhuBB2P+Z7F2zywWNcIFodecAPKXX25+1jbyXxqtOro457eCuiQt3QLoWb9FHN22eIpSD6ngrT+/ztAx1JgtZj904iGQ+JBJpl/FrC6yE7Nep9Lqvutssuc5eLSMkRMrPbEJeOkYJJ6+kEYR/uckAmmB/di49rtmiqzCP/N+QjQlNeMqkdHcy/tbZDJpkaWlynbEN7ciPjEa6WWsjuNz0XDmTOxnR0IoaHYDCmCulZt9nLAvMBE= benedikt@benedikt-fw
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwfCCMix8lC0Cha1tbr7fPt9bRiwwSG30DUsuzb9nyr tim@humboldt.tim.jendrian.de
+  - name: ansible
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOTH7wfLQu4O0RBAukHj4XKCRw9xsi9RKitieEZuADwT ansible@lynx
+
+runcmd:
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
+  - systemctl enable docker
+  - systemctl start docker
+  - su - kai -c "curl https://pyenv.run | bash"
+  - su - kai -c "echo 'export PATH=\"\$HOME/.pyenv/bin:\$PATH\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+  - su - kai -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - kai -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
+  - su - kai -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
+  - su - tim -c "curl https://pyenv.run | bash"
+  - su - tim -c "echo 'export PATH=\"\$HOME/.pyenv/bin:\$PATH\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - tim -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
+  - su - tim -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
+  - su - ansible -c "curl https://pyenv.run | bash"
+  - su - ansible -c "echo 'export PATH=\"\$HOME/.pyenv/bin:\$PATH\"' >> ~/.bashrc"
+  - su - ansible -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - ansible -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+  - su - ansible -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
+  - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
+  - su - ansible -c "bash -c 'pip install --upgrade pip'"
+  - su - ansible -c "bash -c 'pip install ansible'"
+
+
+final_message: "The system is finally up, after $UPTIME seconds"
