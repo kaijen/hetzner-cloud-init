@@ -17,6 +17,7 @@
 ```yaml
 #include
 https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/hetzner-small.yml
+```
 
 ```yaml
 #include
