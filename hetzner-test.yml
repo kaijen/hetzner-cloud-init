@@ -1,6 +1,4 @@
 #include
 https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/system/system.yml
 https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/apps/docker.yml
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/kai.yml
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/ansible.yml
-https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/tim.yml
+https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/users/users.yml

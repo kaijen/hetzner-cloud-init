@@ -3,7 +3,6 @@ timezone: Europe/Berlin
 
 package_upgrade: true
 
-preserve_hostname: true
 hostname: humboldt
 fqdn: humboldt.tim.jendrian.de
 create_hostname_file: true
