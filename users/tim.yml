@@ -1,0 +1,21 @@
+#cloud-config
+
+users:
+  - name: tim
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXOTDsMRjwRmBtERuUg5nxdl7pfngAwWqR3r1shpfvr
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDnfQ5+vnPxLG6JzOBw0uOLsB57MFGboVF0+jNeezL8e+KTSMqmCdgbIqD/hjdwFZYnutYoN+5iVOr4ddP3zsmhTcmgiY43VVgkZbr4cRXd+mXdxl2IkaDgMc380AbYQbWNjhPtHwikJIBXfHzrLqhCwEG0w8xyDMWyYrXqOsLE1/M2nJL+sKeAciI4qWuy5Cw+WFQFmq09dXgwiqlqlMXnu4W9ZUs90LuHIYHGC4YorwGLH4tZggIo3u2tloV4D3KmENdJFniYhddstNxwv3q0kQBata1My2MXxqu6hAEKbEmVLE+CpQ6yQ2ap29dp/Dk+WUobTtGRhOpTkqNzeI4omtEzLmS19KMjDDjJDldWvcCrTfsXVai/UqyPAzh9ydwsi4OK/b5Qcr7dQA89145NKm+mjyCl5Y//bTW1uZortXDJOgI2sGY3tZiePBddJyXsgbnTTX1y5cfp21tcBlbTysUo7J/35h+KuQM8fHLqH94nqTDdbH42IX+ROEwXAkE=
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDLKTg12DLQ4FdnaMBhp0c4QqbSSBq6XZvE3I3BSGnxgtRXvIrPjSzHaT3F37TarqsJSVLkxXyhsziBvLE3zMSZwof44oBQrr3a8cnccNVDWbeih6lZelZh6Q2MGuBnTTi8rsjHJwD+ieS73fdmLYLlmHNX3vWAxlezwEfYGmzDJ6U6x1TKMHTNqZUod/ykB4LBvFLwSwK8KG5oDtGVDELWJmwPcswAm0ItxAeunecAdHDVnbT4wRs4D/9UY+0ubXslYg6k/z9EmmuCxhuBB2P+Z7F2zywWNcIFodecAPKXX25+1jbyXxqtOro457eCuiQt3QLoWb9FHN22eIpSD6ngrT+/ztAx1JgtZj904iGQ+JBJpl/FrC6yE7Nep9Lqvutssuc5eLSMkRMrPbEJeOkYJJ6+kEYR/uckAmmB/di49rtmiqzCP/N+QjQlNeMqkdHcy/tbZDJpkaWlynbEN7ciPjEa6WWsjuNz0XDmTOxnR0IoaHYDCmCulZt9nLAvMBE= benedikt@benedikt-fw
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwfCCMix8lC0Cha1tbr7fPt9bRiwwSG30DUsuzb9nyr tim@humboldt.tim.jendrian.de
+
+runcmd:
+  - su - tim -c "curl https://pyenv.run | bash"
+  - su - tim -c "echo 'export PATH=\"\$HOME/.pyenv/bin:\$PATH\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+  - su - tim -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - tim -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
+  - su - tim -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
