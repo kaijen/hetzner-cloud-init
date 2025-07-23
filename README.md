@@ -5,14 +5,6 @@
 - https://cloudinit.readthedocs.io/en/latest/index.html
 - https://community.hetzner.com/tutorials/securing-ssh
 
-# TODO
-
-- Zeitzone setzen
-- Tastaturlayout setzen
-- Locale setzen
-- Hostnamen setzen
-- ssh Hardening
-
 
 ```yaml
 #include
