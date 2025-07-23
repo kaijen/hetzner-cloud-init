@@ -180,7 +180,7 @@ runcmd:
   - su - ansible -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
   - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
   - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
-  - su - ansible -c "bash -c 'source ~/.bashrc && pyenv exec pip install --upgrade pip'"
-  - su - ansible -c "bash -c 'source ~/.bashrc && pyenv exec pip install ansible'"
+  - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install --upgrade pip'"
+  - su - ansible -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install ansible'"
 
 final_message: "The system is finally up, after $UPTIME seconds"
