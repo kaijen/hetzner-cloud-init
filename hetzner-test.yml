@@ -3,10 +3,19 @@ timezone: Europe/Berlin
 
 package_upgrade: true
 package_update: true
+package_reboot_if_required: true
 
 hostname: humboldt
 fqdn: humboldt.tim.jendrian.de
 create_hostname_file: true
+
+apt:
+  unattended_upgrades:
+    enable: true
+    package_blacklist: []
+    origins:
+      - "${distro_id}:${distro_codename}"
+      - "${distro_id}:${distro_codename}-security"
 
 packages:
   - build-essential
@@ -27,6 +36,91 @@ packages:
   - gnupg
   - lsb-release
 
+write_files:
+  - path: /etc/ssh/sshd_config.d/hardening.conf
+    owner: root:root
+    permissions: '0600'
+    content: |
+      # SSH-Härtung
+      Protocol 2
+      PermitRootLogin no
+      MaxAuthTries 3
+      MaxSessions 5
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      ChallengeResponseAuthentication no
+      KerberosAuthentication no
+      GSSAPIAuthentication no
+      UsePAM yes
+      X11Forwarding no
+      PrintMotd no
+      AcceptEnv LANG LC_*
+      Banner /etc/issue.net
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      PermitEmptyPasswords no
+      AllowTcpForwarding no
+      AllowAgentForwarding no
+      LoginGraceTime 30s
+      LogLevel VERBOSE
+  - path: /etc/issue.net
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ***************************************************************************
+      *                            AUTHORIZED USE ONLY                          *
+      * Unauthorized access is strictly prohibited and will be monitored        *
+      ***************************************************************************
+  - path: /etc/logrotate.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Globale Logrotate-Konfiguration
+      weekly
+      rotate 4
+      create
+      compress
+      dateext
+      include /etc/logrotate.d
+  - path: /etc/sysctl.d/99-custom.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Erhöht die Netzwerkperformance
+      net.core.somaxconn = 65535
+      net.ipv4.tcp_max_syn_backlog = 65535
+
+      # Verbessert die Speichernutzung
+      vm.swappiness = 10
+      vm.vfs_cache_pressure = 50
+
+      # Basis-Sicherheitseinstellungen
+      net.ipv4.conf.all.rp_filter = 1
+      kernel.randomize_va_space = 2
+  - path: /etc/fail2ban/jail.local
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      findtime = 600
+      bantime = 7200
+
+ntp:
+  enabled: true
+  ntp_client: chrony
+  servers:
+    - 0.de.pool.ntp.org
+    - 1.de.pool.ntp.org
+    - 2.de.pool.ntp.org
+
+locale: en_US.UTF-8
+
+keyboard:
+  layout: de
+  model: pc105
+
 users:
   - name: kai
     groups: users, wheel, docker
@@ -40,8 +134,8 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXOTDsMRjwRmBtERuUg5nxdl7pfngAwWqR3r1shpfvr
-      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDnfQ5+vnPxLG6JzOBw0uOLsB57MFGboVF0+jNeezL8e+KTSMqmCdgbIqD/hjdwFZYnutYoN+5iVOr4ddP3zsmhTcmgiY43VVgkZbr4cRXd+mXdxl2IkaDgMc380AbYQbWNjhPtHwikJIBXfHzrLqhCwEG0w8xyDMWyYrXqOsLE1/M2nJL+sKeAciI4qWuy5Cw+WFQFmq09dXgwiqlqlMXnu4W9ZUs90LuHIYHGC4YorwGLH4tZggIo3u2tloV4D3KmENdJFniYhddstNxwv3q0kQBata1My2MXxqu6hAEKbEmVLE+CpQ6yQ2ap29dp/Dk+WUobTtGRhOpTkqNzeI4omtEzLmS19KMjDDjJDldWvcCrTfsXVai/UqyPAzh9ydwsi4OK/b5Qcr7dQA89145NKm+mjyCl5Y//bTW1uZortXDJOgI2sGY3tZiePBddJyXsgbnTTX1y5cfp21tcBlbTysUo7J/35h+KuQM8fHLqH94nqTDdbH42IX+ROEwXAkE=
-      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDLKTg12DLQ4FdnaMBhp0c4QqbSSBq6XZvE3I3BSGnxgtRXvIrPjSzHaT3F37TarqsJSVLkxXyhsziBvLE3zMSZwof44oBQrr3a8cnccNVDWbeih6lZelZh6Q2MGuBnTTi8rsjHJwD+ieS73fdmLYLlmHNX3vWAxlezwEfYGmzDJ6U6x1TKMHTNqZUod/ykB4LBvFLwSwK8KG5oDtGVDELWJmwPcswAm0ItxAeunecAdHDVnbT4wRs4D/9UY+0ubXslYg6k/z9EmmuCxhuBB2P+Z7F2zywWNcIFodecAPKXX25+1jbyXxqtOro457eCuiQt3QLoWb9FHN22eIpSD6ngrT+/ztAx1JgtZj904iGQ+JBJpl/FrC6yE7Nep9Lqvutssuc5eLSMkRMrPbEJeOkYJJ6+kEYR/uckAmmB/di49rtmiqzCP/N+QjQlNeMqkdHcy/tbZDJpkaWlynbEN7ciPjEa6WWsjuNz0XDmTOxnR0IoaHYDCmCulZt9nLAvMBE= benedikt@benedikt-fw
+      # - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDnfQ5+vnPxLG6JzOBw0uOLsB57MFGboVF0+jNeezL8e+KTSMqmCdgbIqD/hjdwFZYnutYoN+5iVOr4ddP3zsmhTcmgiY43VVgkZbr4cRXd+mXdxl2IkaDgMc380AbYQbWNjhPtHwikJIBXfHzrLqhCwEG0w8xyDMWyYrXqOsLE1/M2nJL+sKeAciI4qWuy5Cw+WFQFmq09dXgwiqlqlMXnu4W9ZUs90LuHIYHGC4YorwGLH4tZggIo3u2tloV4D3KmENdJFniYhddstNxwv3q0kQBata1My2MXxqu6hAEKbEmVLE+CpQ6yQ2ap29dp/Dk+WUobTtGRhOpTkqNzeI4omtEzLmS19KMjDDjJDldWvcCrTfsXVai/UqyPAzh9ydwsi4OK/b5Qcr7dQA89145NKm+mjyCl5Y//bTW1uZortXDJOgI2sGY3tZiePBddJyXsgbnTTX1y5cfp21tcBlbTysUo7J/35h+KuQM8fHLqH94nqTDdbH42IX+ROEwXAkE=
+      # - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDLKTg12DLQ4FdnaMBhp0c4QqbSSBq6XZvE3I3BSGnxgtRXvIrPjSzHaT3F37TarqsJSVLkxXyhsziBvLE3zMSZwof44oBQrr3a8cnccNVDWbeih6lZelZh6Q2MGuBnTTi8rsjHJwD+ieS73fdmLYLlmHNX3vWAxlezwEfYGmzDJ6U6x1TKMHTNqZUod/ykB4LBvFLwSwK8KG5oDtGVDELWJmwPcswAm0ItxAeunecAdHDVnbT4wRs4D/9UY+0ubXslYg6k/z9EmmuCxhuBB2P+Z7F2zywWNcIFodecAPKXX25+1jbyXxqtOro457eCuiQt3QLoWb9FHN22eIpSD6ngrT+/ztAx1JgtZj904iGQ+JBJpl/FrC6yE7Nep9Lqvutssuc5eLSMkRMrPbEJeOkYJJ6+kEYR/uckAmmB/di49rtmiqzCP/N+QjQlNeMqkdHcy/tbZDJpkaWlynbEN7ciPjEa6WWsjuNz0XDmTOxnR0IoaHYDCmCulZt9nLAvMBE= benedikt@benedikt-fw
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwfCCMix8lC0Cha1tbr7fPt9bRiwwSG30DUsuzb9nyr tim@humboldt.tim.jendrian.de
   - name: ansible
     groups: users, wheel, docker
@@ -51,6 +145,13 @@ users:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOTH7wfLQu4O0RBAukHj4XKCRw9xsi9RKitieEZuADwT ansible@lynx
 
 runcmd:
+  - systemctl restart ssh
+  - ufw allow 22/tcp comment 'SSH'
+  - ufw allow 80/tcp comment 'HTTP'
+  - ufw allow 443/tcp comment 'HTTPS'
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw enable
   - mkdir -p /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
   - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
