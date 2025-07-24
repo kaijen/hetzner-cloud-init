@@ -1,5 +1,7 @@
 ## template: jinja
 #cloud-config
+{% set hostname_name = 'humboldt' %}
+{% set fqdn_name = 'humboldt.tim.jendrian.de' %}
 {% set users = [
   {
     'name': 'kai',
@@ -35,8 +37,8 @@ package_upgrade: true
 package_update: true
 package_reboot_if_required: true
 
-hostname: humboldt
-fqdn: humboldt.tim.jendrian.de
+hostname: {{ hostname_name }}
+fqdn: {{ fqdn_name }}
 create_hostname_file: true
 
 apt:
