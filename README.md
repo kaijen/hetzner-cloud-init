@@ -20,3 +20,10 @@ https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/hetz
 #include
 https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/hetzner-test.yml
 ```
+
+```yaml
+#include
+https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/hetzner-jinja.yml.jinja
+```
+
+

@@ -1,0 +1,205 @@
+## template: jinja
+#cloud-config
+{% set users = [
+  {
+    'name': 'kai',
+    'ssh_method': 'github',
+    'ssh_value': 'kaijen',
+    'python_packages': []
+  },
+  {
+    'name': 'tim',
+    'ssh_method': 'keys',
+    'ssh_keys': [
+      'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXOTDsMRjwRmBtERuUg5nxdl7pfngAwWqR3r1shpfvr',
+      'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwfCCMix8lC0Cha1tbr7fPt9bRiwwSG30DUsuzb9nyr tim@humboldt.tim.jendrian.de'
+    ],
+    'python_packages': []
+  },
+  {
+    'name': 'ansible',
+    'ssh_method': 'keys',
+    'ssh_keys': ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOTH7wfLQu4O0RBAukHj4XKCRw9xsi9RKitieEZuADwT ansible@lynx'],
+    'python_packages': ['ansible']
+  }
+] %}
+{% set firewall_ports = [
+  {'port': '22/tcp', 'comment': 'SSH'},
+  {'port': '80/tcp', 'comment': 'HTTP'},
+  {'port': '443/tcp', 'comment': 'HTTPS'}
+] %}
+
+timezone: Europe/Berlin
+
+package_upgrade: true
+package_update: true
+package_reboot_if_required: true
+
+hostname: humboldt
+fqdn: humboldt.tim.jendrian.de
+create_hostname_file: true
+
+apt:
+  unattended_upgrades:
+    enable: true
+    package_blacklist: []
+    origins:
+      - "${distro_id}:${distro_codename}"
+      - "${distro_id}:${distro_codename}-security"
+
+packages:
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libffi-dev
+  - liblzma-dev
+  - tk-dev
+  - uuid-dev
+  - xz-utils
+  - fail2ban
+  - ufw
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/hardening.conf
+    owner: root:root
+    permissions: '0600'
+    content: |
+      # SSH-Härtung
+      Protocol 2
+      PermitRootLogin no
+      MaxAuthTries 3
+      MaxSessions 5
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      ChallengeResponseAuthentication no
+      KerberosAuthentication no
+      GSSAPIAuthentication no
+      UsePAM yes
+      X11Forwarding no
+      PrintMotd no
+      AcceptEnv LANG LC_*
+      Banner /etc/issue.net
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      PermitEmptyPasswords no
+      AllowTcpForwarding no
+      AllowAgentForwarding no
+      LoginGraceTime 30s
+      LogLevel VERBOSE
+  - path: /etc/issue.net
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ***************************************************************************
+      *                            AUTHORIZED USE ONLY                          *
+      * Unauthorized access is strictly prohibited and will be monitored        *
+      ***************************************************************************
+  - path: /etc/logrotate.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Globale Logrotate-Konfiguration
+      weekly
+      rotate 4
+      create
+      compress
+      dateext
+      include /etc/logrotate.d
+  - path: /etc/sysctl.d/99-custom.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Erhöht die Netzwerkperformance
+      net.core.somaxconn = 65535
+      net.ipv4.tcp_max_syn_backlog = 65535
+
+      # Verbessert die Speichernutzung
+      vm.swappiness = 10
+      vm.vfs_cache_pressure = 50
+
+      # Basis-Sicherheitseinstellungen
+      net.ipv4.conf.all.rp_filter = 1
+      kernel.randomize_va_space = 2
+  - path: /etc/fail2ban/jail.local
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      findtime = 600
+      bantime = 7200
+
+ntp:
+  enabled: true
+  ntp_client: chrony
+  servers:
+    - 0.de.pool.ntp.org
+    - 1.de.pool.ntp.org
+    - 2.de.pool.ntp.org
+
+locale: en_US.UTF-8
+
+keyboard:
+  layout: de
+  model: pc105
+
+users:
+{% for user in users %}
+  - name: {{ user.name }}
+    groups: users, wheel, docker
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+{% if user.ssh_method == 'github' %}
+    ssh_import_id:
+      - gh:{{ user.ssh_value }}
+{% elif user.ssh_method == 'keys' %}
+    ssh_authorized_keys:
+{% for key in user.ssh_keys %}
+      - {{ key }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+runcmd:
+  # SSH und Firewall Setup
+  - systemctl restart ssh
+{% for fw in firewall_ports %}
+  - ufw allow {{ fw.port }} comment '{{ fw.comment }}'
+{% endfor %}
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw enable
+
+  # Docker Installation
+  - mkdir -p /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
+  - systemctl enable docker
+  - systemctl start docker
+
+  # Python Setup für alle Benutzer
+{% for user in users %}
+  - su - {{ user.name }} -c "curl https://pyenv.run | bash"
+  - su - {{ user.name }} -c "echo 'export PATH=\"\$HOME/.pyenv/bin:\$PATH\"' >> ~/.bashrc"
+  - su - {{ user.name }} -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
+  - su - {{ user.name }} -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
+  - su - {{ user.name }} -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
+  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
+  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
+  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install --upgrade pip'"
+{% for package in user.python_packages %}
+  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install {{ package }}'"
+{% endfor %}
+{% endfor %}
+
+final_message: "The system is finally up, after $UPTIME seconds"
