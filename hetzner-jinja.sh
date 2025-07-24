@@ -222,7 +222,7 @@ for username in "${!USERS[@]}"; do
 
     # Parse user configuration for Python packages
     IFS=':' read -ra USER_CONFIG <<< "${USERS[$username]}"
-    PYTHON_PACKAGES="${USER_CONFIG[2]}"
+    PYTHON_PACKAGES="${USER_CONFIG[2]:-}"
 
     # Install pyenv
     su - "$username" -c 'curl https://pyenv.run | bash'
@@ -242,7 +242,7 @@ for username in "${!USERS[@]}"; do
     if [[ -n "$PYTHON_PACKAGES" && "$PYTHON_PACKAGES" != "" ]]; then
         IFS=',' read -ra PACKAGES <<< "$PYTHON_PACKAGES"
         for package in "${PACKAGES[@]}"; do
-            [[ -n "$package" ]] && su -u "$username" -c "~/.pyenv/bin/pyenv exec pip install $package"
+            [[ -n "$package" ]] && su - "$username" -c "~/.pyenv/bin/pyenv exec pip install $package"
         done
     fi
 done
