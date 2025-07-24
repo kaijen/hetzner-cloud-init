@@ -1,7 +1,10 @@
 ## template: jinja
 #cloud-config
-{% set hostname_name = 'humboldt' %}
-{% set fqdn_name = 'humboldt.tim.jendrian.de' %}
+{% set host = {
+  'name': 'humboldt',
+  'fqdn': 'humboldt.tim.jendrian.de'
+} %}
+
 {% set users = [
   {
     'name': 'kai',
@@ -25,6 +28,7 @@
     'python_packages': ['ansible']
   }
 ] %}
+
 {% set firewall_ports = [
   {'port': '22/tcp', 'comment': 'SSH'},
   {'port': '80/tcp', 'comment': 'HTTP'},
@@ -37,8 +41,8 @@ package_upgrade: true
 package_update: true
 package_reboot_if_required: true
 
-hostname: {{ hostname_name }}
-fqdn: {{ fqdn_name }}
+hostname: {{ host.name }}
+fqdn: {{ host.fqdn }}
 create_hostname_file: true
 
 apt:
@@ -196,11 +200,11 @@ runcmd:
   - su - {{ user.name }} -c "echo 'eval \"\$(pyenv init --path)\"' >> ~/.bashrc"
   - su - {{ user.name }} -c "echo 'eval \"\$(pyenv init -)\"' >> ~/.bashrc"
   - su - {{ user.name }} -c "echo 'eval \"\$(pyenv virtualenv-init -)\"' >> ~/.bashrc"
-  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv install 3.13'"
-  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv global 3.13'"
-  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install --upgrade pip'"
+  - su - {{ user.name }} -c "bash -c '~/.pyenv/bin/pyenv install 3.13'"
+  - su - {{ user.name }} -c "bash -c '~/.pyenv/bin/pyenv global 3.13'"
+  - su - {{ user.name }} -c "bash -c '~/.pyenv/bin/pyenv exec pip install --upgrade pip'"
 {% for package in user.python_packages %}
-  - su - {{ user.name }} -c "bash -c 'source ~/.bashrc && ~/.pyenv/bin/pyenv exec pip install {{ package }}'"
+  - su - {{ user.name }} -c "bash -c '~/.pyenv/bin/pyenv exec pip install {{ package }}'"
 {% endfor %}
 {% endfor %}
 
