@@ -215,6 +215,22 @@ write_files:
       systemctl enable --now docker
       usermod -aG docker kai
 
+      # Tailscale aus dem Repository von Tailscale. Die Anmeldung mit
+      # "tailscale up" bleibt Handarbeit, ein Auth-Key gehoert nicht in die
+      # Userdata.
+      command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+      systemctl enable --now tailscaled
+
+      # tailcat: neuestes Release als .deb, gegen checksums.txt geprueft
+      release=$(curl -fsSL https://api.github.com/repos/tailscale/tailcat/releases/latest)
+      deb_url=$(jq -r --arg a "_${arch}.deb" '.assets[] | select(.name | endswith($a)) | .browser_download_url' <<<"$release")
+      sums_url=$(jq -r '.assets[] | select(.name == "checksums.txt") | .browser_download_url' <<<"$release")
+      deb=/tmp/${deb_url##*/}
+      curl -fsSL "$deb_url" -o "$deb"
+      (cd /tmp && curl -fsSL "$sums_url" | grep " ${deb##*/}\$" | sha256sum -c -)
+      apt-get install -y "$deb"
+      rm -f "$deb"
+
       # Go: neueste stabile Version von go.dev. Die Architekturnamen von
       # dpkg und Go stimmen fuer amd64 und arm64 ueberein.
       go_version=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n1)

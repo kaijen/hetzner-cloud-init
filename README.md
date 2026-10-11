@@ -32,7 +32,7 @@ https://raw.githubusercontent.com/kaijen/hetzner-cloud-init/refs/heads/main/hetz
 
 `hetzner-agent.yml.jinja` richtet einen Server für Agentenaufgaben mit Claude Code ein: Ubuntu 24.04, ausgelegt auf Hetzner CAX (arm64), läuft auch auf x86.
 
-Der Server bekommt den Benutzer `kai` mit sudo ohne Passwort und genau einem SSH-Schlüssel, pyenv mit Python 3.14 und der virtuellen Umgebung `claude-code`, Rust über rustup, Go von go.dev, nvm mit dem neuesten Node-LTS, git, gh, Claude Code und `kanban-md`. Docker stammt aus dem Repository von Docker. Traefik nimmt auf Port 80 und 443 an und holt Zertifikate per HTTP-01; das Dashboard liegt hinter Authelia mit TOTP.
+Der Server bekommt den Benutzer `kai` mit sudo ohne Passwort und genau einem SSH-Schlüssel, pyenv mit Python 3.14 und der virtuellen Umgebung `claude-code`, Rust über rustup, Go von go.dev, nvm mit dem neuesten Node-LTS, git, gh, Claude Code, `kanban-md`, Tailscale und tailcat. tailcat kommt als `.deb` aus dem neuesten GitHub-Release und wird vor der Installation gegen dessen `checksums.txt` geprüft. Docker stammt aus dem Repository von Docker. Traefik nimmt auf Port 80 und 443 an und holt Zertifikate per HTTP-01; das Dashboard liegt hinter Authelia mit TOTP.
 
 ### Vor dem Einsatz
 
@@ -48,6 +48,7 @@ In die Userdata gehören keine Geheimnisse, jeder Prozess auf dem Server kann si
 
 ```bash
 gh auth login                 # GitHub für git und gh
+sudo tailscale up             # Tailscale anmelden, Link im Browser öffnen
 claude                        # Claude Code anmelden
 authelia-add-user kai <mail>  # fragt nach dem Passwort, startet Authelia
 sudo cat /srv/proxy/authelia/config/notification.txt   # Code für TOTP
