@@ -1,0 +1,554 @@
+## template: jinja
+#cloud-config
+#
+# Agent-Server fuer Claude Code: Ubuntu 24.04, gebaut fuer Hetzner CAX (arm64),
+# laeuft unveraendert auch auf x86.
+#
+# Vor dem Einsatz die Werte unter "ANPASSEN" setzen. Einrichtung und Schritte
+# nach dem ersten Login: README.md, Abschnitt "Agent-Server".
+#
+# In diese Datei gehoeren keine Geheimnisse. Userdata kann jeder Prozess auf
+# dem Server ueber den Metadatendienst lesen. Die Authelia-Schluessel erzeugt
+# der Server deshalb selbst.
+
+# ── ANPASSEN ────────────────────────────────────────────────────────────────
+{% set host = {
+  'name': 'agent',
+  'fqdn': 'agent.example.com'
+} %}
+{# Basisdomain fuer Dienste hinter Traefik und fuer das Authelia-Cookie. #}
+{% set domain = 'example.com' %}
+{% set acme_email = 'admin@example.com' %}
+{% set ssh_key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJknFG0GJCUiz0gXOfkxMEQ2qByUjE3FRlvZW49W/haD' %}
+{% set python_version = '3.14' %}
+# ────────────────────────────────────────────────────────────────────────────
+
+{# Die drei Namen folgen den Vorgaben aus kaimarkit/docker/.env.example. #}
+{% set traefik_network = 'traefik-web' %}
+{% set traefik_entrypoint = 'websecure' %}
+{% set traefik_certresolver = 'myresolver' %}
+{% set auth_host = 'auth.' ~ domain %}
+{% set dashboard_host = 'traefik.' ~ domain %}
+{% set traefik_image = 'traefik:v3.6' %}
+{% set authelia_image = 'authelia/authelia:4.39' %}
+
+timezone: Europe/Berlin
+locale: en_US.UTF-8
+
+hostname: {{ host.name }}
+fqdn: {{ host.fqdn }}
+create_hostname_file: true
+
+package_update: true
+package_upgrade: true
+
+# Python aus pyenv, Docling-Builds und VSCode-Server brauchen auf kleinen
+# CAX-Instanzen Reserve.
+swap:
+  filename: /swapfile
+  size: 4G
+  maxsize: 4G
+
+packages:
+  # Baut Python mit pyenv; libzstd-dev fuer compression.zstd ab 3.14
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libncurses-dev
+  - libffi-dev
+  - liblzma-dev
+  - libzstd-dev
+  - libgdbm-dev
+  - tk-dev
+  - uuid-dev
+  - xz-utils
+  # Werkzeuge
+  - git
+  - make
+  - jq
+  - unzip
+  - tmux
+  # Betrieb und Sicherheit
+  - fail2ban
+  - ufw
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - unattended-upgrades
+
+# Die Gruppe muss vor dem Benutzer existieren; docker-ce uebernimmt sie spaeter.
+groups:
+  - docker
+
+users:
+  - name: kai
+    groups: [users, sudo, docker]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - {{ ssh_key }}
+
+ntp:
+  enabled: true
+  ntp_client: chrony
+  servers:
+    - 0.de.pool.ntp.org
+    - 1.de.pool.ntp.org
+    - 2.de.pool.ntp.org
+
+write_files:
+  # ── System ────────────────────────────────────────────────────────────────
+  - path: /etc/ssh/sshd_config.d/hardening.conf
+    owner: root:root
+    permissions: '0600'
+    content: |
+      # SSH-Härtung
+      PermitRootLogin no
+      MaxAuthTries 3
+      # VSCode öffnet je Fenster mehrere Kanäle über eine Verbindung.
+      MaxSessions 20
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      KerberosAuthentication no
+      GSSAPIAuthentication no
+      UsePAM yes
+      X11Forwarding no
+      PrintMotd no
+      AcceptEnv LANG LC_*
+      Banner /etc/issue.net
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      PermitEmptyPasswords no
+      # VSCode Remote-SSH leitet den Port seines Servers lokal weiter. Mit
+      # "no" bricht die Verbindung ab. "local" erlaubt nur -L, kein -R.
+      AllowTcpForwarding local
+      AllowAgentForwarding no
+      LoginGraceTime 30s
+      LogLevel VERBOSE
+      AllowUsers kai
+
+  # cloud-init kennt keinen Schluessel fuer unattended-upgrades. Ubuntu
+  # spielt damit ab Werk nur Sicherheitsupdates ein; die Datei schaltet es
+  # ausdruecklich ein.
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root:root
+    permissions: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/issue.net
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ***************************************************************************
+      *                            AUTHORIZED USE ONLY                          *
+      * Unauthorized access is strictly prohibited and will be monitored        *
+      ***************************************************************************
+
+  - path: /etc/sysctl.d/99-custom.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      net.core.somaxconn = 65535
+      net.ipv4.tcp_max_syn_backlog = 65535
+      vm.swappiness = 10
+      vm.vfs_cache_pressure = 50
+      net.ipv4.conf.all.rp_filter = 1
+      kernel.randomize_va_space = 2
+      # Der Dateibeobachter von VSCode und Node-Werkzeuge brauchen mehr als
+      # die Vorgabe von 8192.
+      fs.inotify.max_user_watches = 524288
+      fs.inotify.max_user_instances = 1024
+
+  - path: /etc/fail2ban/jail.local
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      findtime = 600
+      bantime = 7200
+
+  - path: /etc/profile.d/go.sh
+    owner: root:root
+    permissions: '0644'
+    content: |
+      export PATH="/usr/local/go/bin:$PATH"
+
+  # ── Einrichtung als root ──────────────────────────────────────────────────
+  - path: /usr/local/lib/agent-setup/system.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # Docker, GitHub CLI, Go und der Traefik-Stack. Laeuft als root und
+      # darf erneut laufen.
+      set -euo pipefail
+
+      arch=$(dpkg --print-architecture)
+      install -m 0755 -d /etc/apt/keyrings
+
+      # Docker aus dem Repository von Docker, nicht docker.io aus Ubuntu
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+      chmod a+r /etc/apt/keyrings/docker.asc
+      echo "deb [arch=$arch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+        > /etc/apt/sources.list.d/docker.list
+
+      # GitHub CLI
+      curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+      chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+      echo "deb [arch=$arch signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list
+
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin gh
+      systemctl enable --now docker
+      usermod -aG docker kai
+
+      # Tailscale aus dem Repository von Tailscale. Die Anmeldung mit
+      # "tailscale up" bleibt Handarbeit, ein Auth-Key gehoert nicht in die
+      # Userdata.
+      command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+      systemctl enable --now tailscaled
+
+      # tailcat: neuestes Release als .deb, gegen checksums.txt geprueft
+      release=$(curl -fsSL https://api.github.com/repos/tailscale/tailcat/releases/latest)
+      deb_url=$(jq -r --arg a "_${arch}.deb" '.assets[] | select(.name | endswith($a)) | .browser_download_url' <<<"$release")
+      sums_url=$(jq -r '.assets[] | select(.name == "checksums.txt") | .browser_download_url' <<<"$release")
+      deb=/tmp/${deb_url##*/}
+      curl -fsSL "$deb_url" -o "$deb"
+      (cd /tmp && curl -fsSL "$sums_url" | grep " ${deb##*/}\$" | sha256sum -c -)
+      apt-get install -y "$deb"
+      rm -f "$deb"
+
+      # Go: neueste stabile Version von go.dev. Die Architekturnamen von
+      # dpkg und Go stimmen fuer amd64 und arm64 ueberein.
+      go_version=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n1)
+      if [[ ! -x /usr/local/go/bin/go ]] || [[ "$(/usr/local/go/bin/go env GOVERSION)" != "$go_version" ]]; then
+        curl -fsSL "https://go.dev/dl/${go_version}.linux-${arch}.tar.gz" -o /tmp/go.tar.gz
+        rm -rf /usr/local/go
+        tar -C /usr/local -xzf /tmp/go.tar.gz
+        rm /tmp/go.tar.gz
+      fi
+
+      # Traefik und Authelia. Das Netz bringt der Stack nicht selbst mit,
+      # damit andere Compose-Projekte wie kaimarkit es als extern einbinden.
+      docker network inspect {{ traefik_network }} >/dev/null 2>&1 \
+        || docker network create {{ traefik_network }}
+
+      touch /srv/proxy/traefik/acme.json
+      chmod 600 /srv/proxy/traefik/acme.json
+
+      secrets=/srv/proxy/authelia/secrets
+      install -m 0700 -d "$secrets"
+      for s in jwt_secret session_secret storage_encryption_key; do
+        [[ -s "$secrets/$s" ]] || openssl rand -hex 64 > "$secrets/$s"
+        chmod 600 "$secrets/$s"
+      done
+
+      # Authelia startet erst, wenn authelia-add-user einen Benutzer angelegt
+      # hat. Bis dahin antwortet das Dashboard mit einem Fehler statt offen.
+      docker compose -f /srv/proxy/docker-compose.yml up -d traefik
+
+  # ── Einrichtung als kai ───────────────────────────────────────────────────
+  - path: /usr/local/lib/agent-setup/user.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # pyenv, Rust, nvm, Claude Code und kanban-md fuer den aufrufenden
+      # Benutzer. Darf erneut laufen.
+      set -euo pipefail
+      cd "$HOME"
+
+      # Ein Block in .bashrc fuer alle Werkzeuge. rustup und nvm schreiben
+      # ihre Zeilen selbst; deren Installer werden unten deshalb angewiesen,
+      # die Profile nicht anzufassen.
+      marker='# >>> agent-setup >>>'
+      if ! grep -qF "$marker" .bashrc; then
+        cat >> .bashrc <<'EOF'
+
+      # >>> agent-setup >>>
+      export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH"
+
+      export PYENV_ROOT="$HOME/.pyenv"
+      export PATH="$PYENV_ROOT/bin:$PATH"
+      eval "$(pyenv init - bash)"
+      eval "$(pyenv virtualenv-init -)"
+
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+      [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+      # <<< agent-setup <<<
+      EOF
+      fi
+
+      export PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$PATH"
+
+      # pyenv mit pyenv-virtualenv
+      export PYENV_ROOT="$HOME/.pyenv"
+      [[ -d "$PYENV_ROOT" ]] || curl -fsSL https://pyenv.run | bash
+      export PATH="$PYENV_ROOT/bin:$PATH"
+      eval "$(pyenv init - bash)"
+      pyenv update || true
+      pyenv install --skip-existing {{ python_version }}
+      py=$(pyenv latest {{ python_version }})
+      pyenv global "$py"
+      pyenv versions --bare | grep -qx claude-code \
+        || pyenv virtualenv "$py" claude-code
+      "$PYENV_ROOT/versions/claude-code/bin/python" -m pip install --upgrade pip
+
+      # Rust
+      if [[ ! -x "$HOME/.cargo/bin/rustup" ]]; then
+        curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+          | sh -s -- -y --profile default --no-modify-path
+      else
+        rustup update stable
+      fi
+
+      # nvm und das neueste Node-LTS
+      export NVM_DIR="$HOME/.nvm"
+      nvm_tag=$(curl -fsSL https://api.github.com/repos/nvm-sh/nvm/releases/latest | jq -r .tag_name)
+      curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_tag}/install.sh" \
+        | PROFILE=/dev/null bash
+      set +u
+      # shellcheck source=/dev/null
+      . "$NVM_DIR/nvm.sh"
+      nvm install --lts
+      nvm alias default 'lts/*'
+      set -u
+
+      # Claude Code, nativer Installer nach ~/.local/bin
+      command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash
+
+      # kanban-md, Board-Werkzeug der kaimarkit-Arbeitsweise
+      go install github.com/antopolskiy/kanban-md/cmd/kanban-md@latest
+
+  # ── Traefik und Authelia ──────────────────────────────────────────────────
+  - path: /srv/proxy/docker-compose.yml
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Reverse-Proxy fuer alle Dienste auf diesem Server.
+      #
+      # Ein Dienst haengt sich an, indem er das externe Netz
+      # "{{ traefik_network }}" einbindet und Labels setzt:
+      #   traefik.enable=true
+      #   traefik.http.routers.NAME.rule=Host(`NAME.{{ domain }}`)
+      #   traefik.http.routers.NAME.entrypoints={{ traefik_entrypoint }}
+      #   traefik.http.routers.NAME.tls.certresolver={{ traefik_certresolver }}
+      #   traefik.http.routers.NAME.middlewares=authelia@docker   (optional)
+      # Jeder Hostname braucht einen DNS-Eintrag auf diesen Server, bevor
+      # Traefik das Zertifikat ueber HTTP-01 holen kann.
+
+      name: proxy
+
+      services:
+        traefik:
+          image: {{ traefik_image }}
+          container_name: traefik
+          restart: unless-stopped
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+            - ./traefik/acme.json:/letsencrypt/acme.json
+          networks:
+            - proxy
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.dashboard.rule=Host(`{{ dashboard_host }}`)"
+            - "traefik.http.routers.dashboard.entrypoints={{ traefik_entrypoint }}"
+            - "traefik.http.routers.dashboard.tls.certresolver={{ traefik_certresolver }}"
+            - "traefik.http.routers.dashboard.service=api@internal"
+            - "traefik.http.routers.dashboard.middlewares=authelia@docker"
+
+        authelia:
+          image: {{ authelia_image }}
+          container_name: authelia
+          restart: unless-stopped
+          environment:
+            TZ: Europe/Berlin
+            AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE: /secrets/jwt_secret
+            AUTHELIA_SESSION_SECRET_FILE: /secrets/session_secret
+            AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: /secrets/storage_encryption_key
+          volumes:
+            - ./authelia/config:/config
+            - ./authelia/secrets:/secrets:ro
+          networks:
+            - proxy
+          labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.authelia.rule=Host(`{{ auth_host }}`)"
+            - "traefik.http.routers.authelia.entrypoints={{ traefik_entrypoint }}"
+            - "traefik.http.routers.authelia.tls.certresolver={{ traefik_certresolver }}"
+            - "traefik.http.services.authelia.loadbalancer.server.port=9091"
+            # Die Middleware, die andere Dienste als authelia@docker nennen
+            - "traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/authz/forward-auth"
+            - "traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true"
+            - "traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
+
+      networks:
+        proxy:
+          external: true
+          name: {{ traefik_network }}
+
+  - path: /srv/proxy/traefik/traefik.yml
+    owner: root:root
+    permissions: '0644'
+    content: |
+      api:
+        dashboard: true
+
+      entryPoints:
+        web:
+          address: ":80"
+          http:
+            redirections:
+              entryPoint:
+                to: {{ traefik_entrypoint }}
+                scheme: https
+        {{ traefik_entrypoint }}:
+          address: ":443"
+
+      providers:
+        docker:
+          exposedByDefault: false
+          network: {{ traefik_network }}
+
+      certificatesResolvers:
+        {{ traefik_certresolver }}:
+          acme:
+            email: {{ acme_email }}
+            storage: /letsencrypt/acme.json
+            httpChallenge:
+              entryPoint: web
+
+      log:
+        level: INFO
+
+  - path: /srv/proxy/authelia/config/configuration.yml
+    owner: root:root
+    permissions: '0644'
+    content: |
+      # Die Geheimnisse kommen ueber *_FILE-Variablen aus /secrets,
+      # siehe docker-compose.yml.
+      theme: auto
+
+      server:
+        address: tcp://0.0.0.0:9091/
+
+      log:
+        level: info
+
+      totp:
+        issuer: {{ domain }}
+
+      authentication_backend:
+        password_reset:
+          disable: true
+        file:
+          path: /config/users_database.yml
+          watch: true
+
+      access_control:
+        default_policy: deny
+        rules:
+          - domain:
+              - '{{ domain }}'
+              - '*.{{ domain }}'
+            policy: two_factor
+
+      session:
+        cookies:
+          - domain: {{ domain }}
+            authelia_url: https://{{ auth_host }}
+
+      regulation:
+        max_retries: 5
+        find_time: 10m
+        ban_time: 1h
+
+      storage:
+        local:
+          path: /config/db.sqlite3
+
+      # Kein Mailserver: Bestaetigungscodes, etwa zum Einrichten von TOTP,
+      # landen in /srv/proxy/authelia/config/notification.txt.
+      notifier:
+        filesystem:
+          filename: /config/notification.txt
+
+  - path: /usr/local/bin/authelia-add-user
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # Legt den Authelia-Benutzer an und startet Authelia.
+      #   authelia-add-user NAME E-MAIL
+      # Ueberschreibt users_database.yml; es gibt danach genau diesen Benutzer.
+      set -euo pipefail
+      [[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
+
+      name=${1:?Aufruf: authelia-add-user NAME E-MAIL}
+      email=${2:?Aufruf: authelia-add-user NAME E-MAIL}
+      db=/srv/proxy/authelia/config/users_database.yml
+
+      read -rsp "Passwort für $name: " pw; echo
+      read -rsp "Passwort wiederholen: " pw2; echo
+      [[ -n "$pw" && "$pw" == "$pw2" ]] || { echo "Passwörter leer oder verschieden." >&2; exit 1; }
+
+      hash=$(docker run --rm {{ authelia_image }} \
+        authelia crypto hash generate argon2 --password "$pw" | sed -n 's/^Digest: //p')
+      [[ -n "$hash" ]] || { echo "Kein Hash erhalten." >&2; exit 1; }
+
+      umask 077
+      cat > "$db" <<EOF
+      users:
+        $name:
+          disabled: false
+          displayname: '$name'
+          password: '$hash'
+          email: '$email'
+          groups:
+            - admins
+      EOF
+
+      docker compose -f /srv/proxy/docker-compose.yml up -d authelia
+      echo "Authelia läuft. Anmeldung unter https://{{ auth_host }}"
+      echo "Den Code zum Einrichten von TOTP zeigt:"
+      echo "  sudo cat /srv/proxy/authelia/config/notification.txt"
+
+runcmd:
+  - sysctl --system
+  - systemctl restart ssh
+  - ufw allow 22/tcp comment 'SSH'
+  - ufw allow 80/tcp comment 'HTTP'
+  - ufw allow 443/tcp comment 'HTTPS'
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw --force enable
+  - systemctl enable --now fail2ban
+  # Ausgabe in /var/log/cloud-init-output.log
+  - /usr/local/lib/agent-setup/system.sh
+  - sudo -u kai -H /usr/local/lib/agent-setup/user.sh
+
+# Startet neu, wenn ein Paket-Upgrade das verlangt, aber erst nach runcmd.
+power_state:
+  mode: reboot
+  condition: test -f /var/run/reboot-required
+  message: Reboot nach Paket-Upgrade
+
+final_message: "Agent-Server bereit nach $UPTIME Sekunden. Protokoll: /var/log/cloud-init-output.log"
